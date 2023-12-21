@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Threading.Tasks;
 
 namespace Calendar
 {
@@ -10,17 +11,10 @@ namespace Calendar
     {
         private static List<char> list = new List<char>();
 
-        static void Main()
+        static async Task Main()
         {
-            list = GetDataFromApi(2024);
-            if (list == null)
-            {
-                Console.ReadKey();
-                return;
-            }
-
-            Console.WriteLine(list.Count);
-
+            APIClientService apiClient = new APIClientService();
+            
             using (var dbContext = new UserContext())
             {
                 var requestManager = new RequestManager(dbContext);
@@ -35,73 +29,39 @@ namespace Calendar
                     Console.ReadKey();
                     return;
                 }
-
-                requestManager.UpdateOrInsertCalendar(2023, list);
                 
-                while (true)
+                if (CheckAndGetDataFromApiIfExpired())
                 {
-                    Console.WriteLine("Меню:");
-                    Console.WriteLine("1. Определить типа дня");
-                    Console.WriteLine("0. Выход");
-
-                    Console.Write("\nВвод: ");
-                    var input = Console.ReadLine();
-
-                    switch (input)
-                    {
-                        case "1":
-                            while (true)
-                            {
-                                Console.Write("Введите день в формате год.месяц.день: ");
-                                var inputDate = Console.ReadLine();
-
-                                if (DateTime.TryParse(inputDate, out var date))
-                                {
-
-                                    Console.WriteLine($"{inputDate} - : {requestManager.GetDayType(date)}\n");
-                                    break;
-                                }
-                                else
-                                {
-                                    Console.WriteLine("Введенное значение не является корректной датой");
-                                }
-                            }
-
-                            break;
-
-                        case "0":
-                            return;
-
-                        default:
-                            Console.WriteLine("Неверный ввод. Попробуйте снова.\n");
-                            break;
-                    }
+                    var requestList = await apiClient.GetDataFromApiAsync(DateTime.Now.Year);
+                    requestManager.InsertCalendar(DateTime.Now.Year, requestList);
+                    
+                    Console.WriteLine("Данные обновлены");
                 }
+                
+                
+                Console.WriteLine(requestManager.GetDayType(DateTime.Now));
             }
+
+            Console.WriteLine("Нажмите любую кнопку для выхода");
+            Console.ReadKey();
         }
-
-        private static List<char> GetDataFromApi(int year)
+        
+        /// <summary>
+        /// Проверка что прошел год с момента последнего обновления
+        /// </summary>
+        /// <returns></returns>
+        private static bool CheckAndGetDataFromApiIfExpired()
         {
-            string apiUrl = $"https://isdayoff.ru/api/getdata?year={year}&pre=1";
-
-            try
+            var lastDate = FileOpertions.LoadLastRequestTime();
+            
+            if ((DateTime.Now - lastDate).TotalDays >= 365)
             {
-                var request = WebRequest.Create(apiUrl);
-                request.Method = "GET";
+                Console.WriteLine("Данные обновляются");
+                return true;
+            }
 
-                using (var response = request.GetResponse())
-                using (var dataStream = response.GetResponseStream())
-                using (var reader = new StreamReader(dataStream))
-                {
-                    string responseFromServer = reader.ReadToEnd();
-                    return responseFromServer.ToList();
-                }
-            }
-            catch (WebException ex)
-            {
-                Console.WriteLine($"Ошибка при получении данных с API: {ex.Message}");
-                return null;
-            }
+            Console.WriteLine("Обновление не требуется.");
+            return false;
         }
     }
 }

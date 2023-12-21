@@ -5,9 +5,9 @@ namespace Calendar;
 
 public interface IRequestManager
 {
-    DayType GetDayType(DateTime date);
+    string GetDayType(DateTime date);
 
-    void UpdateOrInsertCalendar(int year, List<char> dayTypes);
-
+    void InsertCalendar(int year, List<char> dayTypes);
+    
     bool IsDatabaseConnected();
 }
